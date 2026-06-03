@@ -1,0 +1,62 @@
+filebeat.inputs:
+  - type: filestream
+    id: python-anomalous-logs
+    enabled: true
+    paths:
+      - /usr/share/filebeat/ingest_data/anomalous_logs_json/*/*/*.ndjson
+    parsers:
+      - ndjson:
+          keys_under_root: true
+          overwrite_keys: true
+          add_error_key: true
+
+    fields:
+      log_type: structured
+      event.dataset: "python.app.structured"
+    fields_under_root: true
+
+processors:
+  - timestamp:
+      field: "@timestamp"
+      layouts:
+        - '2006-01-02T15:04:05Z' # Anpassen, falls Ihr @timestamp Millisekunden enthält
+      ignore_failure: false
+  - convert:
+      fields:
+        - { from: "source.ip", type: "ip" }
+      ignore_missing: true
+      fail_on_error: false
+  - add_docker_metadata: ~
+
+setup.kibana:
+  host: ${KIBANA_HOSTS}
+  username: ${ELASTIC_USER}
+  password: ${ELASTIC_PASSWORD}
+
+# ILM und Template Setup für den Data Stream "filebeat-structured"
+setup.ilm.enabled: true
+setup.ilm.policy_name: "filebeat-structured-policy"
+setup.ilm.overwrite: true
+
+setup.template.name: "filebeat-structured" # Name der Index-Vorlage
+# Dieses Pattern muss ein EINZELNER STRING sein.
+# "filebeat-structured*" deckt den Data Stream Namen "filebeat-structured"
+
+setup.template.pattern: "filebeat-structured*"
+setup.template.overwrite: true
+
+setup.template.settings:
+  index.number_of_shards: 1
+
+output.elasticsearch:
+  hosts: ${ELASTIC_HOSTS}
+  username: ${ELASTIC_USER}
+  password: ${ELASTIC_PASSWORD}
+  ssl.enabled: true
+  ssl.certificate_authorities: "certs/ca/ca.crt"
+  data_stream:
+    namespace: "default"
+    dataset:  "python.app.structured"
+
+logging.level: info
+
